@@ -1,0 +1,83 @@
+@import "tailwindcss";
+
+@theme {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+
+  /* Brand Fonts */
+  --font-sans: var(--font-moga), ui-sans-serif, system-ui, sans-serif;
+  --font-header: var(--font-oswald), sans-serif;
+}
+
+:root {
+  /* Kunst & Design Brand Palette */
+  --background: #FFFFFF;
+  --foreground: #545555;
+  /* Dark Gray */
+
+  --primary: #284960;
+  /* Institutional Blue */
+  --primary-foreground: #FFFFFF;
+
+  --secondary: #D2D2D2;
+  /* Light Gray */
+  --secondary-foreground: #284960;
+
+  --muted: #F3F4F6;
+  --muted-foreground: #6B7280;
+
+  --accent: #E5E7EB;
+  --accent-foreground: #284960;
+
+  --destructive: #EF4444;
+  --destructive-foreground: #FFFFFF;
+
+  --border: #D2D2D2;
+  --input: #D2D2D2;
+  --ring: #284960;
+
+  --popover: #FFFFFF;
+  --popover-foreground: #545555;
+}
+
+/* Specific Utilities for Brand Fonts */
+.font-brand-header {
+  font-family: var(--font-bebas-neue), sans-serif;
+  letter-spacing: 0.05em;
+}
+
+.font-brand-ui {
+  font-family: var(--font-fira-sans), sans-serif;
+}
+
+body {
+  color: var(--foreground);
+  background: var(--background);
+  font-family: var(--font-fira-sans), ui-sans-serif, system-ui, sans-serif;
+  @apply antialiased;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: var(--font-bebas-neue), sans-serif;
+  letter-spacing: 0.02em;
+}

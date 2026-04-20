@@ -1,0 +1,314 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("POSTGRES_PRISMA_URL")
+  directUrl = env("POSTGRES_URL_NON_POOLING")
+}
+
+model User {
+  id        String    @id @default(cuid())
+  email     String    @unique
+  password  String
+  name      String?
+  role      String    @default("staff")
+  isActive  Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  projects  Project[]
+  quotes    Quote[]
+}
+
+model Client {
+  id        String    @id @default(cuid())
+  name      String
+  company   String?
+  email     String?
+  phone     String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  incomes   Income[]
+  projects  Project[]
+  quotes    Quote[]
+}
+
+model Project {
+  id                 String            @id @default(cuid())
+  name               String
+  description        String?
+  status             ProjectStatus     @default(draft)
+  financialStatus    String            @default("ABIERTO")
+  isArchived         Boolean           @default(false)
+  totalCotizado      Float             @default(0)
+  totalIngresado     Float             @default(0)
+  totalEgresado      Float             @default(0)
+  clientId           String
+  userId             String?
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+  deliveryDate       DateTime?
+  deliveryNotes      String?
+  folioNumber        String?           @unique
+  invoiceUrl         String?
+  orderNumber        String?           @unique
+  transportType      String?
+  deliveryExtraItems Json?
+  sellerName         String?
+  incomes            Income[]
+  client             Client            @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  user               User?             @relation(fields: [userId], references: [id])
+  quotes             Quote[]
+  supplierOrders     SupplierOrder[]
+  supplierTasks      SupplierTask[]
+  expenses           VariableExpense[]
+  sellerId           String?
+  seller             Seller?           @relation(fields: [sellerId], references: [id])
+}
+
+model Seller {
+  id        String   @id @default(cuid())
+  name      String
+  email     String?
+  phone     String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  quotes    Quote[]
+  projects  Project[]
+}
+
+model Quote {
+  id             String            @id @default(cuid())
+  project_name   String
+  date           DateTime          @default(now())
+  status         QuoteStatus       @default(draft)
+  deliveryDate   DateTime?
+  version        Int               @default(1)
+  subtotal       Float             @default(0)
+  iva_rate       Float             @default(0.16)
+  iva_amount     Float             @default(0)
+  isr_rate       Float             @default(0)
+  isr_amount     Float             @default(0)
+  profit_rate    Float             @default(0)
+  profit_amount  Float             @default(0)
+  total          Float             @default(0)
+  clientId       String
+  userId         String?
+  projectId      String?
+  isApproved     Boolean           @default(false)
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+  sellerId       String?
+  incomes        Income[]
+  client         Client            @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  project        Project?          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user           User?             @relation(fields: [userId], references: [id])
+  seller         Seller?           @relation(fields: [sellerId], references: [id])
+  items          QuoteItem[]
+  supplierOrders SupplierOrder[]
+  supplierTasks  SupplierTask[]
+  expenses       VariableExpense[]
+}
+
+model QuoteItem {
+  id                   String         @id @default(cuid())
+  quoteId              String
+  concept              String
+  quantity             Float          @default(1)
+  productId            String?
+  productCode          String?
+  productName          String?
+  supplierPrice        Float?
+  internal_unit_cost   Float          @default(0)
+  cost_article         Float          @default(0)
+  cost_workforce       Float          @default(0)
+  cost_packaging       Float          @default(0)
+  cost_transport       Float          @default(0)
+  cost_equipment       Float          @default(0)
+  cost_other           Float          @default(0)
+  profit_margin        Float          @default(0)
+  unit_cost            Float          @default(0)
+  subtotal             Float          @default(0)
+  isSubItem            Boolean        @default(false)
+  orderCreated         Boolean        @default(false)
+  supplierOrderId      String?        @unique
+  boxes                Int?           @default(0)
+  deliveryObservations String?
+  piecesPerBox         Int?           @default(0)
+  createdAt            DateTime       @default(now())
+  updatedAt            DateTime       @updatedAt
+  packagingConcept     String?
+  costBreakdown        Json?
+  product              Product?       @relation(fields: [productId], references: [id])
+  quote                Quote          @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  supplierOrder        SupplierOrder? @relation("QuoteItemToOrder", fields: [supplierOrderId], references: [id])
+}
+
+model Supplier {
+  id        String            @id @default(cuid())
+  name      String
+  type      SupplierType      @default(RAW_MATERIAL)
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+  products  Product[]
+  orders    SupplierOrder[]
+  tasks     SupplierTask[]
+  expenses  VariableExpense[]
+}
+
+model SupplierOrder {
+  id            String            @id @default(cuid())
+  supplierId    String
+  quoteId       String?
+  taskId        String?
+  status        String            @default("PENDING")
+  paymentStatus String            @default("PENDING")
+  expectedDate  DateTime?
+  items         Json
+  projectId     String?
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+  quoteItemId   String?           @unique
+  quoteItem     QuoteItem?        @relation("QuoteItemToOrder")
+  project       Project?          @relation(fields: [projectId], references: [id])
+  quote         Quote?            @relation(fields: [quoteId], references: [id])
+  supplier      Supplier          @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  task          SupplierTask?     @relation(fields: [taskId], references: [id])
+  expenses      VariableExpense[]
+}
+
+model SupplierTask {
+  id           String          @id @default(cuid())
+  supplierId   String
+  quoteId      String?
+  description  String
+  status       String          @default("PENDING")
+  priority     String          @default("MEDIUM")
+  expectedDate DateTime?
+  deliveryDate DateTime?
+  projectId    String?
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+  orders       SupplierOrder[]
+  project      Project?        @relation(fields: [projectId], references: [id])
+  quote        Quote?          @relation(fields: [quoteId], references: [id])
+  supplier     Supplier        @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+}
+
+model Product {
+  id         String      @id @default(cuid())
+  code       String
+  parentCode String?
+  name       String
+  category   String?
+  price      Float
+  priceType  String?
+  supplierId String
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+  supplier   Supplier    @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  quoteItems QuoteItem[]
+
+  @@unique([supplierId, code])
+}
+
+model FixedExpense {
+  id            String   @id @default(cuid())
+  description   String
+  amount        Float
+  category      String?
+  date          DateTime @default(now())
+  recurring     Boolean  @default(false)
+  frequency     String?
+  isActive      Boolean  @default(true)
+  paymentMethod String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model Income {
+  id            String   @id @default(cuid())
+  description   String?
+  amount        Float
+  iva           Float    @default(0)
+  date          DateTime @default(now())
+  status        String   @default("PAID")
+  paymentMethod String?
+  clientId      String?
+  quoteId       String?
+  projectId     String?
+  notes         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  client        Client?  @relation(fields: [clientId], references: [id])
+  project       Project? @relation(fields: [projectId], references: [id])
+  quote         Quote?   @relation(fields: [quoteId], references: [id])
+}
+
+model VariableExpense {
+  id              String         @id @default(cuid())
+  description     String
+  amount          Float
+  iva             Float          @default(0)
+  category        String?
+  date            DateTime       @default(now())
+  paymentMethod   String?
+  supplierId      String?
+  supplierOrderId String?
+  quoteId         String?
+  projectId       String?
+  proofFile       String?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  project         Project?       @relation(fields: [projectId], references: [id])
+  quote           Quote?         @relation(fields: [quoteId], references: [id])
+  supplier        Supplier?      @relation(fields: [supplierId], references: [id])
+  supplierOrder   SupplierOrder? @relation(fields: [supplierOrderId], references: [id])
+}
+
+model CustomizationService {
+  id                String               @id @default(cuid())
+  name              String               @unique
+  label             String
+  machineCostPerMin Float                @default(0)
+  wearCost          Float                @default(0)
+  setupFee          Float                @default(0)
+  defaultMargin     Float                @default(30)
+  isActive          Boolean              @default(true)
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+  ranges            CustomizationRange[]
+}
+
+model CustomizationRange {
+  id        String               @id @default(cuid())
+  serviceId String
+  minQty    Int
+  maxQty    Int
+  laborCost Float                @default(0)
+  service   CustomizationService @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+
+  @@unique([serviceId, minQty, maxQty])
+}
+
+enum SupplierType {
+  RAW_MATERIAL
+  SERVICE
+  FINISHED_PRODUCT
+}
+
+enum ProjectStatus {
+  draft
+  active
+  closed
+  cancelled
+}
+
+enum QuoteStatus {
+  draft
+  approved
+  rejected
+  replaced
+}

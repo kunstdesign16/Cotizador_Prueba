@@ -52,11 +52,15 @@ export function DashboardClient({ quotes, clients, suppliers }: {
     const companies = Array.from(new Set(clients.map(c => c.company).filter(Boolean))).sort()
 
     const filteredQuotes = quotes.filter(quote => {
-        const matchesSearch = quote.project_name.toLowerCase().includes(search.toLowerCase()) ||
-            quote.client.name.toLowerCase().includes(search.toLowerCase()) ||
-            (quote.client.company && quote.client.company.toLowerCase().includes(search.toLowerCase()))
+        const projectNameStr = quote.project_name || "";
+        const clientNameStr = quote.client?.name || "";
+        const clientCompanyStr = quote.client?.company || "";
 
-        const matchesCompany = selectedCompany === "all" || quote.client.company === selectedCompany
+        const matchesSearch = projectNameStr.toLowerCase().includes(search.toLowerCase()) ||
+            clientNameStr.toLowerCase().includes(search.toLowerCase()) ||
+            clientCompanyStr.toLowerCase().includes(search.toLowerCase())
+
+        const matchesCompany = selectedCompany === "all" || quote.client?.company === selectedCompany
         const matchesStatus = selectedStatus === "all" || quote.status === selectedStatus
         return matchesSearch && matchesCompany && matchesStatus
     })
@@ -169,9 +173,9 @@ export function DashboardClient({ quotes, clients, suppliers }: {
                                         )}
                                         <div>
                                             <h2 className="text-base sm:text-lg font-bold text-foreground truncate max-w-[150px] sm:max-w-none">
-                                                {client.company || client.name}
+                                                {client?.company || client?.name || "Sin cliente"}
                                             </h2>
-                                            {client.company && (
+                                            {client?.company && (
                                                 <span className="text-xs sm:text-sm text-muted-foreground block truncate max-w-[150px] sm:max-w-none">{client.name}</span>
                                             )}
                                         </div>
@@ -208,14 +212,14 @@ export function DashboardClient({ quotes, clients, suppliers }: {
                                                         </div>
 
                                                         <div className="flex-1">
-                                                            <h3 className="font-semibold leading-tight tracking-tight text-sm sm:text-base line-clamp-2">{quote.project_name}</h3>
+                                                            <h3 className="font-semibold leading-tight tracking-tight text-sm sm:text-base line-clamp-2">{quote.project_name || "Sin Proyecto"}</h3>
                                                         </div>
 
                                                         <div className="mt-4 flex flex-col sm:flex-row sm:items-center sm:justify-between text-sm pt-4 border-t gap-2">
                                                             <div className="flex flex-col gap-1">
                                                                 <span className="flex items-center text-muted-foreground text-xs">
                                                                     <Calendar className="mr-1 h-3 w-3" />
-                                                                    {format(new Date(quote.date), 'd MMM yyyy', { locale: es })}
+                                                                    {quote.date && !isNaN(new Date(quote.date).getTime()) ? format(new Date(quote.date), 'd MMM yyyy', { locale: es }) : 'Sin fecha'}
                                                                 </span>
 
                                                                 <div onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}>

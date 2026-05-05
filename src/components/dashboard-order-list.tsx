@@ -86,16 +86,16 @@ export function DashboardOrderList({ orders }: DashboardOrderListProps) {
                 return (
                     <div key={order.id} className="p-4 hover:bg-muted/50 transition-colors block">
                         <div className="flex justify-between items-start mb-2">
-                            <Link href={`/suppliers/${order.supplier.id}?orderId=${order.id}`} className="block min-w-0 flex-1">
+                            <Link href={`/suppliers/${order.supplier?.id || 'unknown'}?orderId=${order.id}`} className="block min-w-0 flex-1">
                                 <span className="font-semibold text-sm block truncate pr-2" title={Array.isArray(items) ? items.map((i: any) => i.name || i.code).join(', ') : ''}>
                                     {Array.isArray(items) && items.length > 0
                                         ? items.map((i: any) => `${i.quantity}x ${i.name || i.code}`).join(', ')
                                         : 'Sin conceptos'}
                                 </span>
                                 <div className="flex flex-col gap-0.5 mt-1 overflow-hidden">
-                                    <span className="text-xs font-medium text-foreground/80 truncate">{order.supplier.name}</span>
+                                    <span className="text-xs font-medium text-foreground/80 truncate">{order.supplier?.name || 'Proveedor desconocido'}</span>
                                     <span className="text-[10px] text-muted-foreground">
-                                        {new Date(order.createdAt).toLocaleDateString('es-MX', { day: '2-digit', month: 'short' })}
+                                        {order.createdAt && !isNaN(new Date(order.createdAt).getTime()) ? new Date(order.createdAt).toLocaleDateString('es-MX', { day: '2-digit', month: 'short' }) : 'Sin fecha'}
                                     </span>
                                 </div>
                             </Link>

@@ -22,7 +22,8 @@ export function ProjectDeliveryDate({ id, date, status }: ProjectDeliveryDatePro
 
     // Calculate delay
     const isCompleted = ['closed', 'approved'].includes(status)
-    const delayDays = (currentDate && !isCompleted && isPast(currentDate) && !isSameDay(currentDate, new Date()))
+    const isValidDate = currentDate && !isNaN(currentDate.getTime())
+    const delayDays = (isValidDate && !isCompleted && isPast(currentDate) && !isSameDay(currentDate, new Date()))
         ? differenceInDays(new Date(), currentDate)
         : 0
 
@@ -39,7 +40,7 @@ export function ProjectDeliveryDate({ id, date, status }: ProjectDeliveryDatePro
         setLoading(false)
     }
 
-    const dateString = currentDate ? currentDate.toISOString().split('T')[0] : ''
+    const dateString = isValidDate ? currentDate.toISOString().split('T')[0] : ''
 
     return (
         <Popover open={isOpen} onOpenChange={setIsOpen}>
@@ -56,7 +57,7 @@ export function ProjectDeliveryDate({ id, date, status }: ProjectDeliveryDatePro
                         <Calendar className="h-3 w-3" />
                     )}
 
-                    {currentDate ? (
+                    {isValidDate ? (
                         <span>
                             {delayDays > 0 ? `Retraso (+${delayDays}d)` : `Entrega: ${format(currentDate, 'd MMM', { locale: es })}`}
                         </span>
@@ -69,7 +70,7 @@ export function ProjectDeliveryDate({ id, date, status }: ProjectDeliveryDatePro
                 <div className="space-y-2">
                     <h4 className="font-medium text-sm">Fecha de Entrega</h4>
                     <p className="text-xs text-muted-foreground">
-                        {currentDate
+                        {isValidDate
                             ? format(currentDate, "PPPP", { locale: es })
                             : "Selecciona una fecha para calcular tiempos de entrega."
                         }

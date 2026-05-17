@@ -11,6 +11,7 @@ import { es } from "date-fns/locale"
 import { Client, Quote } from "@prisma/client"
 import DeleteQuoteButton from "./delete-quote-button"
 import DuplicateQuoteButton from "./duplicate-quote-button"
+import QuotePDFButton from "./quote-pdf-button"
 import { QuoteStatusSelector } from "./quote-status-selector"
 import { ProjectDeliveryDate } from "./project-delivery-date"
 import PaymentDialog from "./payment-dialog"
@@ -265,6 +266,11 @@ export function DashboardClient({ quotes, clients, suppliers }: {
                                                             <div className="flex gap-1" onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}>
                                                                 {quote.project?.status === 'draft' && (
                                                                     <>
+                                                                        <QuotePDFButton
+                                                                            quoteId={quote.id}
+                                                                            projectName={quote.project_name}
+                                                                            iconOnly
+                                                                        />
                                                                         <Button
                                                                             variant="ghost"
                                                                             size="icon"
@@ -275,7 +281,11 @@ export function DashboardClient({ quotes, clients, suppliers }: {
                                                                             <Pencil className="h-4 w-4" />
                                                                         </Button>
                                                                         <DuplicateQuoteButton id={quote.id} iconOnly />
-                                                                        <DeleteQuoteButton id={quote.id} iconOnly />
+                                                                        <DeleteQuoteButton
+                                                                            id={quote.id}
+                                                                            projectName={quote.project_name}
+                                                                            iconOnly
+                                                                        />
                                                                     </>
                                                                 )}
 

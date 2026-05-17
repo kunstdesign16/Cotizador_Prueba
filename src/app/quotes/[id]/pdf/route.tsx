@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { renderToStream } from '@react-pdf/renderer';
 import { QuoteDocument } from '@/lib/pdf';
+import { getCurrentUser } from '@/lib/auth-utils';
 
 export const dynamic = 'force-dynamic';
 
@@ -12,8 +13,14 @@ export async function GET(
         const { id } = await context.params;
         const { prisma } = await import('@/lib/prisma');
 
+        const user = await getCurrentUser();
+
         const quote = await (prisma as any).quote.findUnique({
-            where: { id },
+            where: { 
+                id,
+                // Aislamiento multi-tenant: solo el tenant del usuario puede ver este PDF
+                ...(user?.tenantId ? { tenantId: user.tenantId } : {})
+            },
             include: {
                 client: true,
                 items: true,
@@ -60,11 +67,11 @@ export async function GET(
         const clientName = (quote.client?.name || 'Cliente').replace(/[^a-z0-9]/gi, '_');
         const fileName = `Cotizacion_${projectName}_${clientName}.pdf`;
 
-        // Return PDF response
+        // Inline: abre en el navegador en lugar de forzar descarga
         return new NextResponse(stream as any, {
             headers: {
                 'Content-Type': 'application/pdf',
-                'Content-Disposition': `attachment; filename="${fileName}"`,
+                'Content-Disposition': `inline; filename="${fileName}"`,
             },
         });
     } catch (error: any) {

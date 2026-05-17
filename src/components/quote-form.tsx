@@ -11,9 +11,12 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import QuoteItemCostDialog from './quote-item-cost-dialog'
 import CustomizationDialog from './customization-dialog'
-import { ClientCombobox } from './client-combobox'
+import { getIndustrySchema } from '@/lib/industry-utils'
+import { validateItemAvailability } from '@/actions/quotes'
+import { AlertCircle } from 'lucide-react'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
-import { ChevronDown, Sparkles } from 'lucide-react'
+import { ChevronDown, Sparkles, Calendar as CalendarIcon, MapPin, Ruler } from 'lucide-react'
+import { calculateQuoteTotals, calculateLineItem } from '@/lib/pricing-engine'
 
 // Types
 export type QuoteItem = {
@@ -66,9 +69,13 @@ interface QuoteFormProps {
     sellers?: { id: string, name: string }[]
     action: (data: any) => Promise<{ success: boolean; id?: string }>
     title: string
+    industry?: string
 }
 
-export default function QuoteForm({ initialData, clients = [], sellers = [], action, title }: QuoteFormProps) {
+export default function QuoteForm({ initialData, clients = [], sellers = [], action, title, industry = "retail" }: QuoteFormProps) {
+    const industrySchema = getIndustrySchema(industry, initialData?.settings);
+    const { fields } = industrySchema;
+    
     const router = useRouter()
     // Client State
     const [loading, setLoading] = useState(false)
@@ -103,31 +110,48 @@ export default function QuoteForm({ initialData, clients = [], sellers = [], act
         profit_margin: 30,
         unit_cost: 0,
         subtotal: 0,
-        isSubItem: false
+        isSubItem: false,
+        // Polymorphic fields
+        duration: 1,
+        distance: 0,
+        origin: '',
+        destination: '',
+        startDate: '',
+        endDate: '',
     }]).map(item => ({
         ...item,
-        internal_unit_cost: item.internal_unit_cost ?? 0,
-        cost_article: item.cost_article ?? 0,
-        cost_workforce: item.cost_workforce ?? 0,
-        cost_packaging: item.cost_packaging ?? 0,
-        cost_transport: item.cost_transport ?? 0,
-        cost_equipment: item.cost_equipment ?? 0,
-        cost_other: item.cost_other ?? 0,
-        profit_margin: item.profit_margin ?? 30,
-        isSubItem: item.isSubItem ?? false,
+        // String fields — never undefined
+        concept:              item.concept              ?? '',
+        origin:               (item as any).origin      ?? '',
+        destination:          (item as any).destination ?? '',
+        startDate:            (item as any).startDate   ?? '',
+        endDate:              (item as any).endDate     ?? '',
+        // Number fields — never undefined
+        internal_unit_cost:   item.internal_unit_cost   ?? 0,
+        cost_article:         item.cost_article         ?? 0,
+        cost_workforce:       item.cost_workforce       ?? 0,
+        cost_packaging:       item.cost_packaging       ?? 0,
+        cost_transport:       item.cost_transport       ?? 0,
+        cost_equipment:       item.cost_equipment       ?? 0,
+        cost_other:           item.cost_other           ?? 0,
+        profit_margin:        item.profit_margin        ?? 30,
+        unit_cost:            item.unit_cost            ?? 0,
+        subtotal:             item.subtotal             ?? 0,
+        quantity:             item.quantity             ?? 1,
+        duration:             (item as any).duration    ?? 1,
+        distance:             (item as any).distance    ?? 0,
+        // Boolean fields
+        isSubItem:            item.isSubItem            ?? false,
     }))
 
     const [items, setItems] = useState<QuoteItem[]>(safeItems)
 
     // Computed
+    // Computed using Pricing Engine
+    const { subtotal, tax: iva, isr: isrRetention, total } = calculateQuoteTotals(items, industry, 0.16, isrRate);
     const totalInternalCost = items.reduce((acc, item) => acc + (item.internal_unit_cost * item.quantity), 0)
-    const subtotal = items.reduce((acc, item) => acc + item.subtotal, 0)
     // Calculate total unit price (sum of unit prices) as requested
     const totalUnitPrices = items.reduce((acc, item) => acc + item.unit_cost, 0)
-
-    const iva = subtotal * 0.16
-    const isrRetention = subtotal * (isrRate / 100)
-    const total = subtotal + iva - isrRetention
     const estimatedProfit = subtotal - totalInternalCost
 
     const handleSave = async () => {
@@ -179,17 +203,38 @@ export default function QuoteForm({ initialData, clients = [], sellers = [], act
                 // Calculate Unit Price = Internal / (1 - Margin/100) -- Gross Margin (Utilidad Real)
                 const safeMargin = Math.min(newMargin, 99.9)
                 const marginFactor = 1 - (safeMargin / 100)
-                const newUnitCost = marginFactor > 0 ? (newInternalCost / marginFactor) : (newInternalCost * 1000) // Fallback if margin is somehow 100%
+                const baseUnitCost = marginFactor > 0 ? (newInternalCost / marginFactor) : (newInternalCost * 1000) // Fallback if margin is somehow 100%
 
-                const newSubtotal = newQuantity * newUnitCost
-
-                return {
+                // Use Pricing Engine for final item subtotal and unit cost
+                const updatedItem = {
                     ...item, ...updates,
                     internal_unit_cost: newInternalCost,
                     profit_margin: newMargin,
                     quantity: newQuantity,
-                    unit_cost: newUnitCost,
-                    subtotal: newSubtotal
+                    unit_cost: baseUnitCost,
+                }
+                const finalSubtotal = calculateLineItem(updatedItem, industry)
+
+                // Async Availability Check
+                if (updatedItem.productId && (field === 'quantity' || field === 'startDate' || field === 'endDate')) {
+                    validateItemAvailability({
+                        productId: updatedItem.productId,
+                        startDate: updatedItem.startDate,
+                        endDate: updatedItem.endDate,
+                        quantity: updatedItem.quantity,
+                        industry
+                    }).then(res => {
+                        if (!res.available) {
+                            setItems(prev => prev.map(i => i.id === id ? { ...i, warning: res.message } : i))
+                        } else {
+                            setItems(prev => prev.map(i => i.id === id ? { ...i, warning: null } : i))
+                        }
+                    })
+                }
+
+                return {
+                    ...updatedItem,
+                    subtotal: finalSubtotal
                 }
             }
             return item
@@ -251,10 +296,17 @@ export default function QuoteForm({ initialData, clients = [], sellers = [], act
             cost_transport: 0,
             cost_equipment: 0,
             cost_other: 0,
-            profit_margin: 30, // Default 30%
+            profit_margin: useGlobalMargin ? globalMargin : 30,
             unit_cost: 0,
             subtotal: 0,
-            isSubItem: false
+            isSubItem: false,
+            // Polymorphic fields (siempre inicializados)
+            duration: 1,
+            distance: 0,
+            origin: '',
+            destination: '',
+            startDate: '',
+            endDate: '',
         }])
     }
 
@@ -545,6 +597,8 @@ export default function QuoteForm({ initialData, clients = [], sellers = [], act
                                     <th className="px-4 py-3 w-10 text-center"></th>
                                     <th className="px-4 py-3 min-w-[200px]">Concepto</th>
                                     <th className="px-4 py-3 w-20 text-center">Cant.</th>
+                                    {industry === 'rental' && <th className="px-4 py-3 w-24 text-center">Días/Horas</th>}
+                                    {industry === 'services' && <th className="px-4 py-3 w-24 text-center">Distancia</th>}
                                     <th className="px-4 py-3 w-40 text-right bg-blue-50/50 text-blue-900 border-l">Costo Int.</th>
                                     <th className="px-4 py-3 w-24 text-right bg-blue-50/50 text-blue-900">% Margen</th>
                                     <th className="px-4 py-3 w-32 text-right border-l font-semibold">P. Unitario</th>
@@ -574,8 +628,13 @@ export default function QuoteForm({ initialData, clients = [], sellers = [], act
                                                     placeholder="Descripción..."
                                                     className={`border-transparent shadow-none focus-visible:ring-0 bg-transparent px-2 ${item.isSubItem ? 'pl-6 text-muted-foreground italic' : ''}`}
                                                 />
-                                                {item.costBreakdown && <span title="Cálculo Automático"><Sparkles className="h-3 w-3 text-primary shrink-0" /></span>}
+                                            {item.costBreakdown && <span title="Cálculo Automático"><Sparkles className="h-3 w-3 text-primary shrink-0" /></span>}
                                             </div>
+                                            {item.warning && (
+                                                <div className="flex items-center gap-1 text-red-500 text-[10px] mt-1 font-bold animate-pulse">
+                                                    <AlertCircle className="h-3 w-3" /> {item.warning}
+                                                </div>
+                                            )}
                                             {item.isSubItem && <div className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground/50">↳</div>}
                                         </td>
                                         <td className="p-2">
@@ -586,12 +645,35 @@ export default function QuoteForm({ initialData, clients = [], sellers = [], act
                                                 className="border-transparent shadow-none focus-visible:ring-0 bg-transparent px-2 text-center"
                                             />
                                         </td>
+                                        {industry === 'rental' && (
+                                            <td className="p-2">
+                                                <Input
+                                                    type="number"
+                                                    value={item.duration || 1}
+                                                    onChange={e => handleItemChange(item.id, 'duration', e.target.value)}
+                                                    className="border-transparent shadow-none focus-visible:ring-0 bg-transparent px-2 text-center"
+                                                />
+                                            </td>
+                                        )}
+                                        {industry === 'services' && (
+                                            <td className="p-2">
+                                                <div className="flex items-center gap-1">
+                                                    <Input
+                                                        type="number"
+                                                        value={(item as any).distance ?? 0}
+                                                        onChange={e => handleItemChange(item.id, 'distance', e.target.value)}
+                                                        className="border-transparent shadow-none focus-visible:ring-0 bg-transparent px-2 text-center"
+                                                    />
+                                                    <span className="text-[10px] text-gray-500 uppercase">KM</span>
+                                                </div>
+                                            </td>
+                                        )}
 
                                         {/* Internal Inputs (With Dialog Trigger) */}
                                         <td className="p-2 bg-blue-50/30 border-l border-blue-100">
                                             <div className="flex items-center justify-end gap-2 px-2">
                                                 <span className="text-sm font-medium text-blue-900">
-                                                    ${item.internal_unit_cost.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
+                                                    ${(item.internal_unit_cost ?? 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })}
                                                 </span>
                                                 <Button
                                                     variant="ghost"
@@ -608,7 +690,7 @@ export default function QuoteForm({ initialData, clients = [], sellers = [], act
                                             <div className="flex items-center justify-end px-2">
                                                 <Input
                                                     type="number"
-                                                    value={item.profit_margin}
+                                                    value={item.profit_margin ?? 30}
                                                     onChange={e => !useGlobalMargin && handleItemChange(item.id, 'profit_margin', e.target.value)}
                                                     disabled={useGlobalMargin}
                                                     className={`border-transparent shadow-none focus-visible:ring-0 bg-transparent text-right w-16 p-0 ${useGlobalMargin ? 'text-muted-foreground cursor-not-allowed' : 'text-blue-700'}`}

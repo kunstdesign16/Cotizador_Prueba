@@ -1,4 +1,13 @@
-'use server'
+import { checkAvailability } from "@/lib/validation-engine";
+import { requireAuth } from "@/lib/auth-utils";
+
+export async function validateItemAvailability(params: any) {
+  const user = await requireAuth();
+  return await checkAvailability({
+    ...params,
+    tenantId: user.tenantId
+  });
+}
 
 import { revalidatePath } from 'next/cache'
 import { getCurrentUser } from '@/lib/auth-utils'
@@ -366,22 +375,38 @@ async function syncIncomeFromQuote(quoteId: string) {
 export async function deleteQuote(id: string) {
     const { prisma } = await import('@/lib/prisma')
     try {
+        const user = await requireAuth();
+
+        // 1. Verificación de propiedad (Seguridad Multi-tenant)
         const existing = await prisma.quote.findUnique({
-            where: { id },
+            where: { id, tenantId: user.tenantId },
             include: { project: true }
         })
 
-        if (existing?.project && existing.project.status !== 'draft') {
+        if (!existing) {
+            return { success: false, error: 'Cotización no encontrada o sin permisos' }
+        }
+
+        if (existing.project && existing.project.status !== 'draft') {
             return { success: false, error: 'No se puede eliminar una cotización de un proyecto aprobado o en ejecución.' }
         }
 
-        await prisma.quote.delete({
-            where: { id }
-        })
+        // 2. Borrado en transacción para asegurar integridad
+        await prisma.$transaction([
+            // Borrar logs de disponibilidad primero
+            prisma.availabilityLog.deleteMany({ where: { quoteId: id } }),
+            // Borrar ítems
+            prisma.quoteItem.deleteMany({ where: { quoteId: id } }),
+            // Borrar la cotización
+            prisma.quote.delete({ where: { id } })
+        ]);
+
         revalidatePath('/dashboard')
+        revalidatePath('/dashboard/quotes')
         return { success: true }
     } catch (_error) {
-        return { success: false, error: 'Error' }
+        console.error('Error al eliminar cotización:', _error);
+        return { success: false, error: 'Error interno al eliminar la cotización' }
     }
 }
 
